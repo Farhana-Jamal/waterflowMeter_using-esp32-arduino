@@ -1,7 +1,7 @@
-
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_SSD1306.h>
+#include <ThingerESP32.h>
 
 #define Sensor 4
 
@@ -11,8 +11,14 @@
 
 Adafruit_SSD1306 display(OLED_width , OLED_height , &Wire , OLED_reset);
 
+#define SSID "Farhana"
+#define SSID_PASS "1234567890"
 
+#define USERNAME "Farhana"
+#define DEVICE_ID "Waterflow_Meter"
+#define DEVICE_CREDENTIAL  "ZFrSokf+_01&fDln"
 
+ThingerESP32 thing(USERNAME , DEVICE_ID , DEVICE_CREDENTIAL);
 
 long currentMillis = 0;
 long previousMillis = 0;
@@ -23,9 +29,25 @@ float flowRate = 0;
 float flowMillilitres =0;
 float totalMillilitres = 0;
 float totalQuantity = 0;
-float callibrationFactor = 4.5;
+float callibrationFactor = 3.33;
 
+void displayInThinger()
+{
+  thing.add_wifi(SSID , SSID_PASS);
 
+  thing.set_state_listener([&](ThingerClient::THINGER_STATE state)
+  {
+    if(state = ThingerClient::NETWORK_CONNECTED)
+      display.println("Connected");
+    else 
+      display.println("Not Connected");
+     
+  });
+  
+
+  thing["Flowrate"]>>outputValue(flowRate);
+  thing["Quantity"]>>outputValue(totalMillilitres); 
+}
 
 void OLEDdisplay(float totalFlow , float quantity)
 {
@@ -54,11 +76,11 @@ void setup()
 {
   Serial.begin(115200);
 
-  pinMode(Sensor,INPUT);
+  pinMode(Sensor,INPUT_PULLUP);
 
-  attachInterrupt(digitalPinToInterrupt(Sensor),pulseCounter,FALLING);
+  attachInterrupt(digitalPinToInterrupt(Sensor),pulseCounter,RISING);
 
-  
+  displayInThinger();
 }
 
 void calculations()
@@ -69,10 +91,10 @@ void calculations()
     pulse1Sec = pulsecount;
     pulsecount = 0;
 
-    flowRate= (((1000.0 / (millis() - previousMillis)) * pulse1Sec) / callibrationFactor);        
+    flowRate= (((1000.0 / (millis() - previousMillis)) * pulse1Sec) / callibrationFactor);        //flowRAte in L/min
     previousMillis = millis();
 
-    flowMillilitres = ((flowRate / 60) * 1000);                   
+    flowMillilitres = ((flowRate / 60) * 1000);                   // in mL/s
 
     totalMillilitres = totalMillilitres + flowMillilitres;                          // in mL/s
     totalQuantity = totalMillilitres / 1000;                     //in L/s
@@ -90,7 +112,7 @@ void calculations()
 }
 void loop()
 {
-  
+  thing.handle();
   calculations();
   OLEDdisplay(flowRate,totalQuantity);
 }
